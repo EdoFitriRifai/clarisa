@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>POS Claris PRO</title>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+  font-family: Arial;
+  background:#f4f4f4;
+  margin:20px;
+}
+
+.container{
+  max-width:900px;
+  margin:auto;
+  background:white;
+  padding:20px;
+  border-radius:10px;
+}
+
+h2{text-align:center}
+
+button{
+  padding:6px 10px;
+  margin:3px;
+  cursor:pointer;
+}
+
+input{padding:5px;margin:3px}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+}
+
+th,td{
+  border:1px solid #ddd;
+  padding:8px;
+  text-align:center;
+}
+
+.total{
+  text-align:right;
+  font-weight:bold;
+  font-size:18px;
+  margin-top:10px;
+}
+
+/* STRUK THERMAL 58MM */
+.thermal{
+  font-family: monospace;
+  width:220px;
+  font-size:12px;
+  line-height:1.2;
+}
+
+.modal{
+  display:none;
+  position:fixed;
+  top:0;left:0;
+  width:100%;height:100%;
+  background:rgba(0,0,0,0.5);
+}
+
+.modal-content{
+  background:white;
+  width:260px;
+  margin:5% auto;
+  padding:15px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<h2>POS CLARIS PRO</h2>
+
+<!-- MENU -->
+<h3>Menu</h3>
+<button onclick="addMenu('Geprek',15000)">Geprek</button>
+<button onclick="addMenu('Mie Jebew',15000)">Mie Jebew</button>
+
+<!-- INPUT -->
+<h3>Input</h3>
+<input id="nama" placeholder="Nama">
+<input id="harga" type="number" placeholder="Harga">
+<input id="qty" type="number" placeholder="Qty">
+<button onclick="addManual()">Tambah</button>
+
+<table>
+<thead>
+<tr>
+<th>Nama</th><th>Harga</th><th>Qty</th><th>Subtotal</th><th>Aksi</th>
+</tr>
+</thead>
+<tbody id="list"></tbody>
+</table>
+
+<div class="total" id="total">Total: Rp 0</div>
+
+<h3>Pembayaran</h3>
+<input id="bayar" type="number" placeholder="Bayar">
+<button onclick="checkout()">Bayar</button>
+
+<hr>
+
+<h3>📊 Dashboard Penjualan</h3>
+<canvas id="chart" height="120"></canvas>
+
+</div>
+
+<!-- STRUK -->
+<div class="modal" id="modal">
+<div class="modal-content">
+<div id="struk" class="thermal"></div>
+<button onclick="window.print()">Print</button>
+<button onclick="closeModal()">Tutup</button>
+</div>
+</div>
+
+<script>
+
+let cart=[];
+let history=JSON.parse(localStorage.getItem("history"))||[];
+let nomor=1;
+
+function addMenu(n,h){
+cart.push({nama:n,harga:h,qty:1});
+render();
+}
+
+function addManual(){
+let n=document.getElementById("nama").value;
+let h=parseInt(document.getElementById("harga").value);
+let q=parseInt(document.getElementById("qty").value);
+
+if(!n||!h||!q)return alert("Isi lengkap");
+
+cart.push({nama:n,harga:h,qty:q});
+render();
+}
+
+function render(){
+let list=document.getElementById("list");
+list.innerHTML="";
+let total=0;
+
+cart.forEach((i,x)=>{
+let sub=i.harga*i.qty;
+total+=sub;
+
+list.innerHTML+=`
+<tr>
+<td>${i.nama}</td>
+<td>${i.harga}</td>
+<td>${i.qty}</td>
+<td>${sub}</td>
+<td><button onclick="del(${x})">X</button></td>
+</tr>`;
+});
+
+document.getElementById("total").innerText="Total: Rp "+total;
+}
+
+function del(i){
+cart.splice(i,1);
+render();
+}
+
+function checkout(){
+let bayar=parseInt(document.getElementById("bayar").value);
+let total=cart.reduce((a,b)=>a+b.harga*b.qty,0);
+
+if(!bayar || bayar<total) return alert("Uang kurang");
+
+let kembali=bayar-total;
+let no="INV-"+Date.now();
+
+printStruk(no,total,bayar,kembali);
+saveHistory(no,total);
+}
+
+function printStruk(no,total,bayar,kembali){
+let t=new Date().toLocaleString("id-ID");
+
+let struk=`
+CLARIS
+----------------
+${no}
+${t}
+----------------
+`;
+
+cart.forEach(i=>{
+struk+=`${i.nama}\nx${i.qty}  Rp${i.harga*i.qty}\n`;
+});
+
+struk+=`
+----------------
+TOTAL : Rp ${total}
+BAYAR : Rp ${bayar}
+KEMBALI: Rp ${kembali}
+----------------
+TERIMA KASIH
+`;
+
+document.getElementById("struk").innerText=struk;
+document.getElementById("modal").style.display="block";
+
+cart=[];
+render();
+document.getElementById("bayar").value="";
+
+updateChart();
+}
+
+function closeModal(){
+document.getElementById("modal").style.display="none";
+}
+
+function saveHistory(no,total){
+history.push({no,total,date:new Date().toLocaleDateString("id-ID")});
+localStorage.setItem("history",JSON.stringify(history));
+updateChart();
+}
+
+/* 📊 CHART DASHBOARD */
+let chart;
+
+function updateChart(){
+let labels=[];
+let data=[];
+
+history.slice(-7).forEach(h=>{
+labels.push(h.date);
+data.push(h.total);
+});
+
+if(chart) chart.destroy();
+
+chart=new Chart(document.getElementById("chart"),{
+type:"line",
+data:{
+labels:labels,
+datasets:[{
+label:"Penjualan",
+data:data,
+borderColor:"blue",
+tension:0.3
+}]
+}
+});
+}
+
+updateChart();
+
+</script>
+
+</body>
+</html>

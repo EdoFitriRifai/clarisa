@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>POS Claris Android</title>
+
+<style>
+body{
+  font-family: Arial;
+  background:#f4f4f4;
+  margin:20px;
+}
+
+.container{
+  max-width:750px;
+  margin:auto;
+  background:white;
+  padding:20px;
+  border-radius:10px;
+}
+
+h2{text-align:center}
+
+button{
+  padding:8px 10px;
+  margin:4px;
+  cursor:pointer;
+}
+
+input{
+  padding:6px;
+  margin:3px;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+}
+
+th,td{
+  border:1px solid #ddd;
+  padding:8px;
+  text-align:center;
+}
+
+.total{
+  text-align:right;
+  font-size:18px;
+  font-weight:bold;
+  margin-top:10px;
+}
+</style>
+
+</head>
+<body>
+
+<div class="container">
+
+<h2>POS CLARIS (ANDROID)</h2>
+
+<!-- MENU -->
+<h3>Menu Cepat</h3>
+<button onclick="addMenu('Geprek',15000)">Geprek 15K</button>
+<button onclick="addMenu('Mie Jebew',15000)">Mie Jebew 15K</button>
+
+<hr>
+
+<!-- INPUT MANUAL -->
+<h3>Input Manual</h3>
+<input id="nama" placeholder="Nama barang">
+<input id="harga" type="number" placeholder="Harga">
+<input id="qty" type="number" placeholder="Qty">
+<button onclick="addManual()">Tambah</button>
+
+<!-- TABLE -->
+<table>
+<thead>
+<tr>
+<th>Nama</th>
+<th>Harga</th>
+<th>Qty</th>
+<th>Subtotal</th>
+<th>Aksi</th>
+</tr>
+</thead>
+<tbody id="list"></tbody>
+</table>
+
+<div class="total" id="total">Total: Rp 0</div>
+
+<hr>
+
+<h3>Pembayaran</h3>
+<input id="bayar" type="number" placeholder="Uang bayar">
+<button onclick="checkout()">Bayar & Print</button>
+<button onclick="resetCart()">Reset</button>
+
+</div>
+
+<script>
+
+let cart=[];
+
+function addMenu(nama,harga){
+cart.push({nama,harga,qty:1});
+render();
+}
+
+function addManual(){
+let n=document.getElementById("nama").value;
+let h=parseInt(document.getElementById("harga").value);
+let q=parseInt(document.getElementById("qty").value);
+
+if(!n||!h||!q){
+alert("Isi lengkap");
+return;
+}
+
+cart.push({nama:n,harga:h,qty:q});
+render();
+}
+
+function render(){
+let list=document.getElementById("list");
+list.innerHTML="";
+let total=0;
+
+cart.forEach((item,i)=>{
+let sub=item.harga*item.qty;
+total+=sub;
+
+list.innerHTML+=`
+<tr>
+<td>${item.nama}</td>
+<td>${item.harga}</td>
+<td>${item.qty}</td>
+<td>${sub}</td>
+<td><button onclick="hapus(${i})">X</button></td>
+</tr>`;
+});
+
+document.getElementById("total").innerText="Total: Rp "+total;
+}
+
+function hapus(i){
+cart.splice(i,1);
+render();
+}
+
+function resetCart(){
+cart=[];
+render();
+document.getElementById("bayar").value="";
+}
+
+/* =========================
+   ANDROID RAWBT PRINT
+========================= */
+
+function checkout(){
+
+let bayar=parseInt(document.getElementById("bayar").value);
+let total=cart.reduce((a,b)=>a+b.harga*b.qty,0);
+
+if(!bayar || bayar < total){
+alert("Uang kurang");
+return;
+}
+
+let kembali=bayar-total;
+let no="INV-"+Date.now();
+
+printRawBT(no,total,bayar,kembali);
+
+cart=[];
+render();
+document.getElementById("bayar").value="";
+}
+
+function printRawBT(no,total,bayar,kembali){
+
+let text =
+`CLARIS
+----------------------
+${no}
+${new Date().toLocaleString("id-ID")}
+----------------------
+`;
+
+cart.forEach(i=>{
+text += `${i.nama}
+${i.qty} x ${i.harga} = ${i.qty*i.harga}
+`;
+});
+
+text += `
+----------------------
+TOTAL : ${total}
+BAYAR : ${bayar}
+KEMBALI: ${kembali}
+----------------------
+TERIMA KASIH
+`;
+
+/* kirim ke RawBT printer */
+let url =
+"intent://print/#Intent;" +
+"scheme=rawbt;" +
+"package=ru.a402d.rawbtprinter;" +
+"S.text=" + encodeURIComponent(text) +
+";end;";
+
+window.location.href = url;
+}
+
+</script>
+
+</body>
+</html>
