@@ -2,263 +2,178 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>POS Claris PRO</title>
-
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cetak Struk Bluetooth Thermal</title>
 
 <style>
 body{
-  font-family: Arial;
-  background:#f4f4f4;
-  margin:20px;
+    font-family: Arial, sans-serif;
+    padding:20px;
+    background:#f5f5f5;
 }
 
 .container{
-  max-width:900px;
-  margin:auto;
-  background:white;
-  padding:20px;
-  border-radius:10px;
+    max-width:500px;
+    margin:auto;
+    background:white;
+    padding:20px;
+    border-radius:10px;
 }
 
-h2{text-align:center}
+input, textarea{
+    width:100%;
+    padding:10px;
+    margin-top:5px;
+    margin-bottom:10px;
+}
 
 button{
-  padding:6px 10px;
-  margin:3px;
-  cursor:pointer;
+    width:100%;
+    padding:12px;
+    background:#2196F3;
+    color:white;
+    border:none;
+    cursor:pointer;
+    margin-top:5px;
 }
 
-input{padding:5px;margin:3px}
-
-table{
-  width:100%;
-  border-collapse:collapse;
-  margin-top:10px;
+button:hover{
+    background:#1976D2;
 }
 
-th,td{
-  border:1px solid #ddd;
-  padding:8px;
-  text-align:center;
-}
-
-.total{
-  text-align:right;
-  font-weight:bold;
-  font-size:18px;
-  margin-top:10px;
-}
-
-/* STRUK THERMAL 58MM */
-.thermal{
-  font-family: monospace;
-  width:220px;
-  font-size:12px;
-  line-height:1.2;
-}
-
-.modal{
-  display:none;
-  position:fixed;
-  top:0;left:0;
-  width:100%;height:100%;
-  background:rgba(0,0,0,0.5);
-}
-
-.modal-content{
-  background:white;
-  width:260px;
-  margin:5% auto;
-  padding:15px;
+.preview{
+    background:#eee;
+    padding:10px;
+    white-space:pre-wrap;
 }
 </style>
-</head>
 
+</head>
 <body>
 
 <div class="container">
-<h2>POS CLARIS PRO</h2>
 
-<!-- MENU -->
-<h3>Menu</h3>
-<button onclick="addMenu('Geprek',15000)">Geprek</button>
-<button onclick="addMenu('Mie Jebew',15000)">Mie Jebew</button>
+<h2>Cetak Struk Bluetooth Thermal</h2>
 
-<!-- INPUT -->
-<h3>Input</h3>
-<input id="nama" placeholder="Nama">
-<input id="harga" type="number" placeholder="Harga">
-<input id="qty" type="number" placeholder="Qty">
-<button onclick="addManual()">Tambah</button>
+<label>Nama Toko</label>
+<input type="text" id="store" value="WARUNG MAJU JAYA">
 
-<table>
-<thead>
-<tr>
-<th>Nama</th><th>Harga</th><th>Qty</th><th>Subtotal</th><th>Aksi</th>
-</tr>
-</thead>
-<tbody id="list"></tbody>
-</table>
+<label>Item</label>
+<textarea id="items" rows="5">Nasi Goreng x1 15000
+Es Teh x2 10000</textarea>
 
-<div class="total" id="total">Total: Rp 0</div>
+<label>Total</label>
+<input type="number" id="total" value="25000">
 
-<h3>Pembayaran</h3>
-<input id="bayar" type="number" placeholder="Bayar">
-<button onclick="checkout()">Bayar</button>
+<button onclick="connectPrinter()">
+Hubungkan Printer
+</button>
 
-<hr>
+<button onclick="printReceipt()">
+Cetak Struk
+</button>
 
-<h3>📊 Dashboard Penjualan</h3>
-<canvas id="chart" height="120"></canvas>
+<h3>Preview</h3>
+<div class="preview" id="preview"></div>
 
-</div>
-
-<!-- STRUK -->
-<div class="modal" id="modal">
-<div class="modal-content">
-<div id="struk" class="thermal"></div>
-<button onclick="window.print()">Print</button>
-<button onclick="closeModal()">Tutup</button>
-</div>
 </div>
 
 <script>
 
-let cart=[];
-let history=JSON.parse(localStorage.getItem("history"))||[];
-let nomor=1;
+let printerCharacteristic;
 
-function addMenu(n,h){
-cart.push({nama:n,harga:h,qty:1});
-render();
-}
+function generateReceipt(){
 
-function addManual(){
-let n=document.getElementById("nama").value;
-let h=parseInt(document.getElementById("harga").value);
-let q=parseInt(document.getElementById("qty").value);
+    const store = document.getElementById('store').value;
+    const items = document.getElementById('items').value;
+    const total = document.getElementById('total').value;
 
-if(!n||!h||!q)return alert("Isi lengkap");
+    return `
+${store}
+==============================
+${items}
+------------------------------
+TOTAL : Rp ${Number(total).toLocaleString('id-ID')}
+==============================
 
-cart.push({nama:n,harga:h,qty:q});
-render();
-}
+Terima Kasih
 
-function render(){
-let list=document.getElementById("list");
-list.innerHTML="";
-let total=0;
-
-cart.forEach((i,x)=>{
-let sub=i.harga*i.qty;
-total+=sub;
-
-list.innerHTML+=`
-<tr>
-<td>${i.nama}</td>
-<td>${i.harga}</td>
-<td>${i.qty}</td>
-<td>${sub}</td>
-<td><button onclick="del(${x})">X</button></td>
-</tr>`;
-});
-
-document.getElementById("total").innerText="Total: Rp "+total;
-}
-
-function del(i){
-cart.splice(i,1);
-render();
-}
-
-function checkout(){
-let bayar=parseInt(document.getElementById("bayar").value);
-let total=cart.reduce((a,b)=>a+b.harga*b.qty,0);
-
-if(!bayar || bayar<total) return alert("Uang kurang");
-
-let kembali=bayar-total;
-let no="INV-"+Date.now();
-
-printStruk(no,total,bayar,kembali);
-saveHistory(no,total);
-}
-
-function printStruk(no,total,bayar,kembali){
-let t=new Date().toLocaleString("id-ID");
-
-let struk=`
-CLARIS
-----------------
-${no}
-${t}
-----------------
 `;
+}
 
-cart.forEach(i=>{
-struk+=`${i.nama}\nx${i.qty}  Rp${i.harga*i.qty}\n`;
+function updatePreview(){
+    document.getElementById('preview').innerText = generateReceipt();
+}
+
+updatePreview();
+
+document.querySelectorAll("input,textarea")
+.forEach(el=>{
+    el.addEventListener("input",updatePreview);
 });
 
-struk+=`
-----------------
-TOTAL : Rp ${total}
-BAYAR : Rp ${bayar}
-KEMBALI: Rp ${kembali}
-----------------
-TERIMA KASIH
-`;
+async function connectPrinter(){
 
-document.getElementById("struk").innerText=struk;
-document.getElementById("modal").style.display="block";
+    try{
 
-cart=[];
-render();
-document.getElementById("bayar").value="";
+        const device = await navigator.bluetooth.requestDevice({
+            acceptAllDevices:true,
+            optionalServices:[
+                '000018f0-0000-1000-8000-00805f9b34fb'
+            ]
+        });
 
-updateChart();
+        const server = await device.gatt.connect();
+
+        const service = await server.getPrimaryService(
+            '000018f0-0000-1000-8000-00805f9b34fb'
+        );
+
+        printerCharacteristic =
+            await service.getCharacteristic(
+                '00002af1-0000-1000-8000-00805f9b34fb'
+            );
+
+        alert("Printer Terhubung");
+
+    }catch(err){
+        alert("Gagal koneksi : " + err);
+        console.error(err);
+    }
 }
 
-function closeModal(){
-document.getElementById("modal").style.display="none";
+async function printReceipt(){
+
+    if(!printerCharacteristic){
+        alert("Hubungkan printer terlebih dahulu");
+        return;
+    }
+
+    try{
+
+        const encoder = new TextEncoder();
+
+        const ESC = '\x1B';
+        const GS = '\x1D';
+
+        let data =
+            ESC + '@' +
+            ESC + 'a' + '\x01' +
+            generateReceipt() +
+            '\n\n\n' +
+            GS + 'V' + '\x41' + '\x03';
+
+        await printerCharacteristic.writeValue(
+            encoder.encode(data)
+        );
+
+        alert("Struk berhasil dicetak");
+
+    }catch(err){
+        console.error(err);
+        alert("Gagal cetak");
+    }
 }
-
-function saveHistory(no,total){
-history.push({no,total,date:new Date().toLocaleDateString("id-ID")});
-localStorage.setItem("history",JSON.stringify(history));
-updateChart();
-}
-
-/* 📊 CHART DASHBOARD */
-let chart;
-
-function updateChart(){
-let labels=[];
-let data=[];
-
-history.slice(-7).forEach(h=>{
-labels.push(h.date);
-data.push(h.total);
-});
-
-if(chart) chart.destroy();
-
-chart=new Chart(document.getElementById("chart"),{
-type:"line",
-data:{
-labels:labels,
-datasets:[{
-label:"Penjualan",
-data:data,
-borderColor:"blue",
-tension:0.3
-}]
-}
-});
-}
-
-updateChart();
 
 </script>
 
